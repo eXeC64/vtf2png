@@ -257,9 +257,9 @@ void decode_dxt_colors(int x, int y, uint16_t c0, uint16_t c1, uint32_t ci, uint
   b[0] = c888[2];
 
   rgb565_to_rgb888(c1, &c888[0]);
-  r[0] = c888[0];
-  g[0] = c888[1];
-  b[0] = c888[2];
+  r[1] = c888[0];
+  g[1] = c888[1];
+  b[1] = c888[2];
 
   //and calculate the other two
   r[2] = (4*r[0] + 2*r[1] + 3)/6;
