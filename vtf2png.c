@@ -200,9 +200,42 @@ void rgb565_to_rgb888(uint16_t in, uint8_t *out)
 // |-c0--|-c1--|
 // |----ci-----|
 
-void decode_dxt5(uint8_t** rgba_rows, uint8_t* data, int filesize, int frame)
+//Decode the color information and apply it a 4x4 block of rows
+void decode_dxt_colors(int x, int y, uint16_t c0, uint16_t c1, uint32_t ci, uint8_t** rgba_rows)
 {
+  uint8_t c888[3], r[4], g[4], b[4];
 
+  rgb565_to_rgb888(c0, &c888[0]);
+  r[0] = c888[0];
+  g[0] = c888[1];
+  b[0] = c888[2];
+
+  rgb565_to_rgb888(c1, &c888[0]);
+  r[0] = c888[0];
+  g[0] = c888[1];
+  b[0] = c888[2];
+
+  //and calculate the other two
+  r[2] = (4*r[0] + 2*r[1] + 3)/6;
+  g[2] = (4*g[0] + 2*g[1] + 3)/6;
+  b[2] = (4*b[0] + 2*b[1] + 3)/6;
+  r[3] = (2*r[0] + 4*r[1] + 3)/6;
+  g[3] = (2*g[0] + 4*g[1] + 3)/6;
+  b[3] = (2*b[0] + 4*b[1] + 3)/6;
+
+  //Insert the colour data
+  for(int yo = 0; yo < 4; ++yo) {
+    for(int xo = 0; xo < 4; ++xo) {
+      rgba_rows[y+yo][4*x+4*xo+0] = r[ci & 3];
+      rgba_rows[y+yo][4*x+4*xo+1] = g[ci & 3];
+      rgba_rows[y+yo][4*x+4*xo+2] = b[ci & 3];
+      ci >>= 2;
+    }
+  }
+}
+
+void decode_dxt5(uint8_t* data, int filesize, int frame, uint8_t** rgba_rows)
+{
   vtf_header_t* header = (vtf_header_t*) data;
   char* img = malloc(header->width * header->height * 4);
   int framesize = ((header->width+3)/4) * ((header->height+3)/4) * (128/8);
@@ -210,22 +243,20 @@ void decode_dxt5(uint8_t** rgba_rows, uint8_t* data, int filesize, int frame)
 
   uint8_t a[8]; //alpha values
   uint64_t ai; //alpha indices
-  uint8_t r[4]; //r for color values
-  uint8_t g[4]; //g for color values
-  uint8_t b[4]; //b for color values
+  uint16_t c0, c1; //packed color values
   uint32_t ci; //color indices
 
-  for(int i = 0; i < header->height; i += 4) {
-    for(int j = 0; j < header->width; j += 4) {
+  for(int y = 0; y < header->height; y += 4) {
+    for(int x = 0; x < header->width; x += 4) {
       //First calculate our alpha values
       a[0] = data[pos++];
       a[1] = data[pos++];
       if(a[0] > a[1]) {
-        for(int k = 0; k < 6; ++k)
-          a[2+k] = ((12-(2*k))*a[0] + (2+2*k)*a[1] + 7) / 14;
+        for(int i = 0; i < 6; ++i)
+          a[2+i] = ((12-(2*i))*a[0] + (2+2*i)*a[1] + 7) / 14;
       } else {
-        for(int k = 0; k < 4; ++k)
-          a[2+k] = ((8-(2*k))*a[0] + (2+2*k)*a[1] + 5) / 10;
+        for(int i = 0; i < 4; ++i)
+          a[2+i] = ((8-(2*i))*a[0] + (2+2*i)*a[1] + 5) / 10;
         a[6] = 0; a[7] = 255;
       }
 
@@ -234,47 +265,25 @@ void decode_dxt5(uint8_t** rgba_rows, uint8_t* data, int filesize, int frame)
       for(int i = 0; i <= 40; i += 8)
         ai |= (uint64_t)data[pos++] << i;
 
-      //Now extract our two main color values
-      uint8_t c888[3];
-      uint16_t cp = data[pos++];
-      cp |= data[pos++] << 8;
+      //Apply the alpha information to this block
+      for(int yo = 0; yo < 4; ++yo) {
+        for(int xo = 0; xo < 4; ++xo) {
+          rgba_rows[y+yo][4*x+4*xo+3] = a[ai & 7];
+          ai >>= 3;
+        }
+      }
 
-      rgb565_to_rgb888(cp, &c888[0]);
-      r[0] = c888[0];
-      g[0] = c888[1];
-      b[0] = c888[2];
-
-      cp = data[pos++];
-      cp |= data[pos++] << 8;
-      rgb565_to_rgb888(cp, &c888[0]);
-      r[0] = c888[0];
-      g[0] = c888[1];
-      b[0] = c888[2];
-
-      //and calculate the other two
-      r[2] = (4*r[0] + 2*r[1] + 3)/6;
-      g[2] = (4*g[0] + 2*g[1] + 3)/6;
-      b[2] = (4*b[0] + 2*b[1] + 3)/6;
-      r[3] = (2*r[0] + 4*r[1] + 3)/6;
-      g[3] = (2*g[0] + 4*g[1] + 3)/6;
-      b[3] = (2*b[0] + 4*b[1] + 3)/6;
-
-      //Extract the color indices
+      //Unpack the colour information
+      c0 = data[pos++];
+      c0 |= data[pos++] << 8;
+      c1 = data[pos++];
+      c1 |= data[pos++] << 8;
       ci = 0;
       for(int i = 0; i <= 24; i += 8)
         ci |= (uint64_t)data[pos++] << i;
 
-      //Now we just index the colours+alpha values to build our block
-      for(int y = 0; y < 4; ++y) {
-        for(int x = 0; x < 4; ++x) {
-          rgba_rows[i+y][4*j+4*x+0] = r[ci & 3];
-          rgba_rows[i+y][4*j+4*x+1] = g[ci & 3];
-          rgba_rows[i+y][4*j+4*x+2] = b[ci & 3];
-          rgba_rows[i+y][4*j+4*x+3] = a[ai & 7];
-          //Move to the next color & alpha index
-          ci >>= 2; ai >>= 3;
-        }
-      }
+      //Apply the colour information
+      decode_dxt_colors(x, y, c0, c1, ci, rgba_rows);
     }
   }
 }
@@ -328,7 +337,7 @@ int main(int argc, char** argv)
 
   switch(header->image_format) {
     case IMAGE_FORMAT_DXT5:
-      decode_dxt5(rgba_rows, filedata, filesize, frame);
+      decode_dxt5(filedata, filesize, frame, rgba_rows);
       break;
     default:
       printf("Unsupported format: %s\n", format_to_name(header->image_format));
