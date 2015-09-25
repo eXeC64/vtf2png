@@ -123,7 +123,7 @@ const char* format_to_name(int format)
   return "unknown";
 }
 
-void decode_rgba(uint8_t* data, int filesize, int frame, int format, uint8_t** rgba_rows)
+void decode_rgba(uint8_t* data, int filesize, int frame_offset, int format, uint8_t** rgba_rows)
 {
   vtf_header_t* header = (vtf_header_t*) data;
 
@@ -141,7 +141,7 @@ void decode_rgba(uint8_t* data, int filesize, int frame, int format, uint8_t** r
   }
 
   int framesize = header->width * header->height * (has_alpha ? 4 : 3);
-  int pos = filesize - (framesize*frame);
+  int pos = filesize - (framesize*frame_offset);
 
   uint8_t r,g,b,a;
 
@@ -241,11 +241,11 @@ void decode_dxt_colors(int x, int y, uint16_t c0, uint16_t c1, uint32_t ci, uint
   }
 }
 
-void decode_dxt1(uint8_t* data, int filesize, int frame, uint8_t** rgba_rows)
+void decode_dxt1(uint8_t* data, int filesize, int frame_offset, uint8_t** rgba_rows)
 {
   vtf_header_t* header = (vtf_header_t*) data;
   int framesize = ((header->width+3)/4) * ((header->height+3)/4) * (64/8);
-  int pos = filesize - (framesize*frame);
+  int pos = filesize - (framesize*frame_offset);
 
   uint16_t c0, c1; //packed color values
   uint32_t ci; //color indices
@@ -271,11 +271,11 @@ void decode_dxt1(uint8_t* data, int filesize, int frame, uint8_t** rgba_rows)
   }
 }
 
-void decode_dxt3(uint8_t* data, int filesize, int frame, uint8_t** rgba_rows)
+void decode_dxt3(uint8_t* data, int filesize, int frame_offset, uint8_t** rgba_rows)
 {
   vtf_header_t* header = (vtf_header_t*) data;
   int framesize = ((header->width+3)/4) * ((header->height+3)/4) * (128/8);
-  int pos = filesize - (framesize*frame);
+  int pos = filesize - (framesize*frame_offset);
 
   uint16_t c0, c1; //packed color values
   uint32_t ci; //color indices
@@ -311,11 +311,11 @@ void decode_dxt3(uint8_t* data, int filesize, int frame, uint8_t** rgba_rows)
   }
 }
 
-void decode_dxt5(uint8_t* data, int filesize, int frame, uint8_t** rgba_rows)
+void decode_dxt5(uint8_t* data, int filesize, int frame_offset, uint8_t** rgba_rows)
 {
   vtf_header_t* header = (vtf_header_t*) data;
   int framesize = ((header->width+3)/4) * ((header->height+3)/4) * (128/8);
-  int pos = filesize - (framesize*frame);
+  int pos = filesize - (framesize*frame_offset);
 
   uint8_t a[8]; //alpha values
   uint64_t ai; //alpha indices
@@ -390,8 +390,7 @@ int main(int argc, char** argv)
   uint8_t* filedata = mmap(0, filesize, PROT_READ, MAP_PRIVATE, fd, 0);
   vtf_header_t* header = (vtf_header_t*)filedata;
 
-  printf(" - VTF HEADER - \n"
-      "version: %i.%i\n"
+  printf("version: %i.%i\n"
       "width: %i\n"
       "height: %i\n"
       "frames: %i\n"
@@ -403,6 +402,15 @@ int main(int argc, char** argv)
       header->frames,
       header->mipmap_count,
       format_to_name(header->image_format));
+
+  //Validate the chosen frame and calculate the offset
+  if(frame < 0 || frame > header->frames) {
+    printf("Invalid frame number: %i\n", frame);
+    return 3;
+  }
+
+  //Which frame we want to look at, 0 being the last frame, 1 the previous, etc.
+  int frame_offset = header->frames - frame;
 
   //Array of pointers to each row array
   uint8_t** rgba_rows = malloc(sizeof(uint8_t*)*header->height);
@@ -418,27 +426,27 @@ int main(int argc, char** argv)
     case IMAGE_FORMAT_BGRA8888:
     case IMAGE_FORMAT_RGB888:
     case IMAGE_FORMAT_BGR888:
-      decode_rgba(filedata, filesize, frame, header->image_format, rgba_rows);
+      decode_rgba(filedata, filesize, frame_offset, header->image_format, rgba_rows);
       break;
     case IMAGE_FORMAT_DXT1:
-      decode_dxt1(filedata, filesize, frame, rgba_rows);
+      decode_dxt1(filedata, filesize, frame_offset, rgba_rows);
       break;
     case IMAGE_FORMAT_DXT3:
-      decode_dxt3(filedata, filesize, frame, rgba_rows);
+      decode_dxt3(filedata, filesize, frame_offset, rgba_rows);
       break;
     case IMAGE_FORMAT_DXT5:
-      decode_dxt5(filedata, filesize, frame, rgba_rows);
+      decode_dxt5(filedata, filesize, frame_offset, rgba_rows);
       break;
     default:
       printf("Unsupported format: %s\n", format_to_name(header->image_format));
-      return 3;
+      return 4;
   }
 
   //We should now have valid pixel data, so write a png
   FILE* of = fopen(outpath, "wb");
   if(!of) {
     printf("could not open \"%s\" for writing\n", outpath);
-    return 4;
+    return 5;
   }
 
   png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
