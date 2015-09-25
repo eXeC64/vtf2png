@@ -224,14 +224,13 @@ void decode_rgba(uint8_t* data, int filesize, int frame, int format, uint8_t** r
           a = 255;
           break;
       }
-      rgba_rows[y][x+0] = r;
-      rgba_rows[y][x+1] = g;
-      rgba_rows[y][x+2] = b;
-      rgba_rows[y][x+3] = a;
+      rgba_rows[y][4*x+0] = r;
+      rgba_rows[y][4*x+1] = g;
+      rgba_rows[y][4*x+2] = b;
+      rgba_rows[y][4*x+3] = a;
     }
   }
 }
-
 
 void rgb565_to_rgb888(uint16_t in, uint8_t *out)
 {
