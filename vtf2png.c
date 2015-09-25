@@ -162,6 +162,77 @@ const char* format_to_name(int format)
   return "unknown";
 }
 
+void decode_rgba(uint8_t* data, int filesize, int frame, int format, uint8_t** rgba_rows)
+{
+  vtf_header_t* header = (vtf_header_t*) data;
+
+  int has_alpha = 0;
+  switch(header->image_format) {
+    case IMAGE_FORMAT_RGBA8888:
+    case IMAGE_FORMAT_ARGB8888:
+    case IMAGE_FORMAT_ABGR8888:
+    case IMAGE_FORMAT_BGRA8888:
+      has_alpha = 1;
+      break;
+    default:
+      has_alpha = 1;
+      break;
+  }
+
+  int framesize = header->width * header->height * (has_alpha ? 4 : 3);
+  int pos = filesize - (framesize*frame);
+
+  uint8_t r,g,b,a;
+
+  for(int y = 0; y < header->height; ++y) {
+    for(int x = 0; x < header->width; ++x) {
+      switch(header->image_format) {
+        case IMAGE_FORMAT_RGBA8888:
+          r = data[pos++];
+          g = data[pos++];
+          b = data[pos++];
+          a = data[pos++];
+          break;
+        case IMAGE_FORMAT_ARGB8888:
+          a = data[pos++];
+          r = data[pos++];
+          g = data[pos++];
+          b = data[pos++];
+          break;
+        case IMAGE_FORMAT_ABGR8888:
+          a = data[pos++];
+          b = data[pos++];
+          g = data[pos++];
+          r = data[pos++];
+          break;
+        case IMAGE_FORMAT_BGRA8888:
+          b = data[pos++];
+          g = data[pos++];
+          r = data[pos++];
+          a = data[pos++];
+          break;
+        case IMAGE_FORMAT_RGB888:
+          r = data[pos++];
+          g = data[pos++];
+          b = data[pos++];
+          a = 255;
+          break;
+        case IMAGE_FORMAT_BGR888:
+          b = data[pos++];
+          g = data[pos++];
+          r = data[pos++];
+          a = 255;
+          break;
+      }
+      rgba_rows[y][x+0] = r;
+      rgba_rows[y][x+1] = g;
+      rgba_rows[y][x+2] = b;
+      rgba_rows[y][x+3] = a;
+    }
+  }
+}
+
+
 void rgb565_to_rgb888(uint16_t in, uint8_t *out)
 {
   uint8_t r,g,b;
@@ -381,6 +452,14 @@ int main(int argc, char** argv)
   }
 
   switch(header->image_format) {
+    case IMAGE_FORMAT_RGBA8888:
+    case IMAGE_FORMAT_ARGB8888:
+    case IMAGE_FORMAT_ABGR8888:
+    case IMAGE_FORMAT_BGRA8888:
+    case IMAGE_FORMAT_RGB888:
+    case IMAGE_FORMAT_BGR888:
+      decode_rgba(filedata, filesize, frame, header->image_format, rgba_rows);
+      break;
     case IMAGE_FORMAT_DXT1:
       decode_dxt1(filedata, filesize, frame, rgba_rows);
       break;
