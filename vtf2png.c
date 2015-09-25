@@ -409,8 +409,8 @@ int main(int argc, char** argv)
     return 3;
   }
 
-  //Which frame we want to look at, 0 being the last frame, 1 the previous, etc.
-  int frame_offset = header->frames - frame;
+  //Which frame we want to look at, 1 being the last frame, 2 the previous, etc.
+  int frame_offset = 1 + header->frames - frame;
 
   //Array of pointers to each row array
   uint8_t** rgba_rows = malloc(sizeof(uint8_t*)*header->height);
