@@ -1,10 +1,14 @@
 vtf2png
 =======
 
-I couldn't find a decent way to look at images in the VTF format (used by
-Valve's source engine) on Linux, so I wrote this quick and dirty tool to export
-these files to PNGs. The only dependency is libPNG, making this ultra-portable.
+`vtf2png` is a command line tool to extract images from the VTF format used by
+Valve's Source Engine. It supports a variety of pixel data formats, including
+most of the RGBA variations and DXT compression formats.
 
-Exporting a single image: `./vtf2png some.vtf out.png`
+The only dependency is libpng, so this will work on all major platforms.
 
-Exporting a frame from an animated image: `./vtf2png -f 17 some.vtf out.png`
+**Usage:**
+
+Export an image: `./vtf2png some.vtf out.png`
+
+Export a specific frame: `./vtf2png -f 17 some.vtf out.png`
