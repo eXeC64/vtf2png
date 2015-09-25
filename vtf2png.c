@@ -176,30 +176,6 @@ void rgb565_to_rgb888(uint16_t in, uint8_t *out)
   out[2] = b;
 }
 
-//DXT uses 4x4 pixel blocks encoded as 128 bits each
-
-// DXT1
-// |08|08|08|08| 32 bits wide
-// 
-// |-c0--|-c1--|
-// |----ci-----|
-
-// DXT3
-// |08|08|08|08| 32 bits wide
-// 
-// |---alpha---|
-// |---alpha---|
-// |-c0--|-c1--|
-// |----ci-----|
-
-// DXT5
-// |08|08|08|08| 32 bits wide
-// 
-// |a0|a1|--ai-|
-// |----ai-----|
-// |-c0--|-c1--|
-// |----ci-----|
-
 //Decode the color information and apply it a 4x4 block of rows
 void decode_dxt_colors(int x, int y, uint16_t c0, uint16_t c1, uint32_t ci, uint8_t** rgba_rows)
 {
@@ -261,6 +237,47 @@ void decode_dxt1(uint8_t* data, int filesize, int frame, uint8_t** rgba_rows)
       for(int yo = 0; yo < 4; ++yo)
         for(int xo = 0; xo < 4; ++xo)
           rgba_rows[y+yo][4*x+4*xo+3] = 255;
+    }
+  }
+}
+
+void decode_dxt3(uint8_t* data, int filesize, int frame, uint8_t** rgba_rows)
+{
+  vtf_header_t* header = (vtf_header_t*) data;
+  char* img = malloc(header->width * header->height * 4);
+  int framesize = ((header->width+3)/4) * ((header->height+3)/4) * (64/8);
+  int pos = filesize - (framesize*frame);
+
+  uint16_t c0, c1; //packed color values
+  uint32_t ci; //color indices
+  uint64_t al;
+
+  for(int y = 0; y < header->height; y += 4) {
+    for(int x = 0; x < header->width; x += 4) {
+
+      //Unpack the alpha data
+      al = 0;
+      for(int i = 0; i <= 48; i += 8)
+        al |= (uint64_t)data[pos++] << i;
+
+      //Unpack the colour information
+      c0 = data[pos++];
+      c0 |= data[pos++] << 8;
+      c1 = data[pos++];
+      c1 |= data[pos++] << 8;
+      ci = 0;
+      for(int i = 0; i <= 24; i += 8)
+        ci |= (uint64_t)data[pos++] << i;
+      //Apply the colour information
+      decode_dxt_colors(x, y, c0, c1, ci, rgba_rows);
+
+      //Set alpha using the unpacked data
+      for(int yo = 0; yo < 4; ++yo) {
+        for(int xo = 0; xo < 4; ++xo) {
+          rgba_rows[y+yo][4*x+4*xo+3] = al & 15;
+          al >>= 4;
+        }
+      }
     }
   }
 }
@@ -369,6 +386,9 @@ int main(int argc, char** argv)
   switch(header->image_format) {
     case IMAGE_FORMAT_DXT1:
       decode_dxt1(filedata, filesize, frame, rgba_rows);
+      break;
+    case IMAGE_FORMAT_DXT3:
+      decode_dxt3(filedata, filesize, frame, rgba_rows);
       break;
     case IMAGE_FORMAT_DXT5:
       decode_dxt5(filedata, filesize, frame, rgba_rows);
