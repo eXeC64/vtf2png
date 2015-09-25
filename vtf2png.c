@@ -245,7 +245,7 @@ void decode_dxt3(uint8_t* data, int filesize, int frame, uint8_t** rgba_rows)
 {
   vtf_header_t* header = (vtf_header_t*) data;
   char* img = malloc(header->width * header->height * 4);
-  int framesize = ((header->width+3)/4) * ((header->height+3)/4) * (64/8);
+  int framesize = ((header->width+3)/4) * ((header->height+3)/4) * (128/8);
   int pos = filesize - (framesize*frame);
 
   uint16_t c0, c1; //packed color values
