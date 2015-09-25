@@ -166,7 +166,7 @@ void decode_rgba(uint8_t* data, int filesize, int frame, int format, uint8_t** r
 {
   vtf_header_t* header = (vtf_header_t*) data;
 
-  int has_alpha = 0;
+  int has_alpha;
   switch(header->image_format) {
     case IMAGE_FORMAT_RGBA8888:
     case IMAGE_FORMAT_ARGB8888:
@@ -175,7 +175,7 @@ void decode_rgba(uint8_t* data, int filesize, int frame, int format, uint8_t** r
       has_alpha = 1;
       break;
     default:
-      has_alpha = 1;
+      has_alpha = 0;
       break;
   }
 
