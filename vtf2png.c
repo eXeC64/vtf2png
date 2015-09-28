@@ -376,11 +376,7 @@ int arg_parse_opt(int key, char* arg, struct argp_state *state)
   struct options *options = state->input;
   switch(key) {
     case 'f':
-      if(arg) {
-        options->frame = strtol(arg, NULL, 10);
-      } else {
-        options->frame = 1;
-      }
+      options->frame = strtol(arg, NULL, 10);
       break;
     case ARGP_KEY_ARG:
       switch(state->arg_num) {
@@ -412,7 +408,7 @@ int main(int argc, char** argv)
 {
 
   struct argp_option arg_options[] = {
-    { "frame", 'f', "FRAME", OPTION_ARG_OPTIONAL, "Output a specific frame"},
+    { "frame", 'f', "FRAME", 0, "Output a specific frame"},
     {0},
   };
 
