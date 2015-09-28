@@ -397,13 +397,13 @@ int arg_parse_opt(int key, char* arg, struct argp_state *state)
           options->out_path = arg;
           break;
         default:
-          printf("Too many arguments.\n");
+          fprintf(stderr, "Too many arguments.\n");
           argp_usage(state);
       }
       break;
     case ARGP_KEY_END:
       if(state->arg_num < 2) {
-        printf("Insufficient arguments.\n");
+        fprintf(stderr, "Insufficient arguments.\n");
         argp_usage(state);
       }
       break;
@@ -430,7 +430,7 @@ int main(int argc, char** argv)
 
   int fd = open(options.in_path, O_RDONLY);
   if (fd < 0) {
-    printf("Unable to open \"%s\"\n", options.in_path);
+    fprintf(stderr, "Unable to open \"%s\"\n", options.in_path);
     return 2;
   }
 
@@ -440,13 +440,13 @@ int main(int argc, char** argv)
 
   if(strncmp(&header->signature[0], "VTF", 4) != 0
      || header->image_format == IMAGE_FORMAT_NONE) {
-    printf("Input file is invalid\n");
+    fprintf(stderr, "Input file is invalid\n");
     return 2;
   }
 
   if(header->version[0] > 7
      || (header->version[0] == 7 && header->version[1] > 2)) {
-    printf("Unsupported VTF file version: %i.%i\n",
+    fprintf(stderr, "Unsupported VTF file version: %i.%i\n",
         header->version[0], header->version[1]);
     return 2;
   }
@@ -468,7 +468,7 @@ int main(int argc, char** argv)
 
   //Validate the chosen frame and calculate the offset
   if(options.frame < 0 || options.frame > header->frames) {
-    printf("Invalid frame number: %i\n", options.frame);
+    fprintf(stderr, "Invalid frame number: %i\n", options.frame);
     return 3;
   }
 
@@ -501,14 +501,14 @@ int main(int argc, char** argv)
       decode_dxt5(filedata, filesize, frame_offset, rgba_rows);
       break;
     default:
-      printf("Unsupported format: %s\n", format_to_name(header->image_format));
+      fprintf(stderr, "Unsupported format: %s\n", format_to_name(header->image_format));
       return 4;
   }
 
   //We should now have valid pixel data, so write a png
   FILE* of = fopen(options.out_path, "wb");
   if(!of) {
-    printf("could not open \"%s\" for writing\n", options.out_path);
+    fprintf(stderr, "Could not open \"%s\" for writing\n", options.out_path);
     return 5;
   }
 
