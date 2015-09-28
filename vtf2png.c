@@ -396,9 +396,10 @@ int arg_parse_opt(int key, char* arg, struct argp_state *state)
       }
       break;
     case ARGP_KEY_END:
-      if(state->arg_num < 2)
+      if(state->arg_num < 2) {
         printf("Insufficient arguments.\n");
         argp_usage(state);
+      }
       break;
     default:
       return ARGP_ERR_UNKNOWN;
@@ -418,7 +419,7 @@ int main(int argc, char** argv)
   struct argp argp = {arg_options, arg_parse_opt, "INPUT.vtf OUTPUT.png"};
 
   struct options options;
-  if (argp_parse(&argp, argc, argv, 0, 0, &options));
+  argp_parse(&argp, argc, argv, 0, 0, &options);
 
   int fd = open(options.in_path, O_RDONLY);
   if (fd < 0) {
