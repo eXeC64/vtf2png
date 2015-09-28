@@ -369,14 +369,24 @@ struct options {
   char* in_path;
   char* out_path;
   int frame;
+  int verbose;
 };
 
 int arg_parse_opt(int key, char* arg, struct argp_state *state)
 {
   struct options *options = state->input;
   switch(key) {
+    case ARGP_KEY_INIT:
+      options->in_path = "";
+      options->out_path = "";
+      options->frame = 1;
+      options->verbose = 0;
+      break;
     case 'f':
       options->frame = strtol(arg, NULL, 10);
+      break;
+    case 'v':
+      options->verbose = 1;
       break;
     case ARGP_KEY_ARG:
       switch(state->arg_num) {
@@ -409,6 +419,7 @@ int main(int argc, char** argv)
 
   struct argp_option arg_options[] = {
     { "frame", 'f', "FRAME", 0, "Output a specific frame"},
+    { "verbose", 'v', 0, 0, "Verbose output"},
     {0},
   };
 
@@ -440,18 +451,20 @@ int main(int argc, char** argv)
     return 2;
   }
 
-  printf("version: %i.%i\n"
-      "width: %i\n"
-      "height: %i\n"
-      "frames: %i\n"
-      "mipmaps: %i\n"
-      "format: %s\n",
-      header->version[0], header->version[1],
-      header->width,
-      header->height,
-      header->frames,
-      header->mipmap_count,
-      format_to_name(header->image_format));
+  if(options.verbose) {
+    printf("version: %i.%i\n"
+        "width: %i\n"
+        "height: %i\n"
+        "frames: %i\n"
+        "mipmaps: %i\n"
+        "format: %s\n",
+        header->version[0], header->version[1],
+        header->width,
+        header->height,
+        header->frames,
+        header->mipmap_count,
+        format_to_name(header->image_format));
+  }
 
   //Validate the chosen frame and calculate the offset
   if(options.frame < 0 || options.frame > header->frames) {
