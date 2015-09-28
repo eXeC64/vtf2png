@@ -431,6 +431,19 @@ int main(int argc, char** argv)
   uint8_t* filedata = mmap(0, filesize, PROT_READ, MAP_PRIVATE, fd, 0);
   vtf_header_t* header = (vtf_header_t*)filedata;
 
+  if(strncmp(&header->signature[0], "VTF", 4) != 0
+     || header->image_format == IMAGE_FORMAT_NONE) {
+    printf("Input file is invalid\n");
+    return 2;
+  }
+
+  if(header->version[0] > 7
+     || (header->version[0] == 7 && header->version[1] > 2)) {
+    printf("Unsupported VTF file version: %i.%i\n",
+        header->version[0], header->version[1]);
+    return 2;
+  }
+
   printf("version: %i.%i\n"
       "width: %i\n"
       "height: %i\n"
