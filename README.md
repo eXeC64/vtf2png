@@ -5,7 +5,7 @@ vtf2png
 Valve's Source Engine. It supports a variety of pixel data formats, including
 most of the RGBA variations and DXT compression formats.
 
-The only dependency is libpng, so this will work on all major platforms.
+The only dependencies are libpng and argp.
 
 **Usage:**
 

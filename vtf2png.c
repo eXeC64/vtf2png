@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <png.h>
 #include <sys/mman.h>
+#include <argp.h>
 
 enum
 {
@@ -364,25 +365,64 @@ void decode_dxt5(uint8_t* data, int filesize, int frame_offset, uint8_t** rgba_r
   }
 }
 
+struct options {
+  char* in_path;
+  char* out_path;
+  int frame;
+};
+
+int arg_parse_opt(int key, char* arg, struct argp_state *state)
+{
+  struct options *options = state->input;
+  switch(key) {
+    case 'f':
+      if(arg) {
+        options->frame = strtol(arg, NULL, 10);
+      } else {
+        options->frame = 1;
+      }
+      break;
+    case ARGP_KEY_ARG:
+      switch(state->arg_num) {
+        case 0:
+          options->in_path = arg;
+          break;
+        case 1:
+          options->out_path = arg;
+          break;
+        default:
+          printf("Too many arguments.\n");
+          argp_usage(state);
+      }
+      break;
+    case ARGP_KEY_END:
+      if(state->arg_num < 2)
+        printf("Insufficient arguments.\n");
+        argp_usage(state);
+      break;
+    default:
+      return ARGP_ERR_UNKNOWN;
+  }
+  return 0;
+}
+
+
 int main(int argc, char** argv)
 {
-  if(argc < 3) {
-    printf("Usage: %s [-f frame] <in.vtf> <out.png>\n", argv[0]);
-    return 1;
-  }
 
-  const char* filepath = argv[argc-2];
-  const char* outpath = argv[argc-1];
-  int frame = 1;
+  struct argp_option arg_options[] = {
+    { "frame", 'f', "FRAME", OPTION_ARG_OPTIONAL, "Output a specific frame"},
+    {0},
+  };
 
-  for(int a = 1; a < argc - 1; ++a) {
-    if(strcmp("-f", argv[a]) == 0)
-      frame = atoi(argv[a+1]);
-  }
+  struct argp argp = {arg_options, arg_parse_opt, "INPUT.vtf OUTPUT.png"};
 
-  int fd = open(filepath, O_RDONLY);
+  struct options options;
+  if (argp_parse(&argp, argc, argv, 0, 0, &options));
+
+  int fd = open(options.in_path, O_RDONLY);
   if (fd < 0) {
-    printf("Unable to open \"%s\"\n", filepath);
+    printf("Unable to open \"%s\"\n", options.in_path);
     return 2;
   }
 
@@ -404,13 +444,13 @@ int main(int argc, char** argv)
       format_to_name(header->image_format));
 
   //Validate the chosen frame and calculate the offset
-  if(frame < 0 || frame > header->frames) {
-    printf("Invalid frame number: %i\n", frame);
+  if(options.frame < 0 || options.frame > header->frames) {
+    printf("Invalid frame number: %i\n", options.frame);
     return 3;
   }
 
   //Which frame we want to look at, 1 being the last frame, 2 the previous, etc.
-  int frame_offset = 1 + header->frames - frame;
+  int frame_offset = 1 + header->frames - options.frame;
 
   //Array of pointers to each row array
   uint8_t** rgba_rows = malloc(sizeof(uint8_t*)*header->height);
@@ -443,9 +483,9 @@ int main(int argc, char** argv)
   }
 
   //We should now have valid pixel data, so write a png
-  FILE* of = fopen(outpath, "wb");
+  FILE* of = fopen(options.out_path, "wb");
   if(!of) {
-    printf("could not open \"%s\" for writing\n", outpath);
+    printf("could not open \"%s\" for writing\n", options.out_path);
     return 5;
   }
 
