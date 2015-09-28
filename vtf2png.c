@@ -431,7 +431,7 @@ int main(int argc, char** argv)
   int fd = open(options.in_path, O_RDONLY);
   if (fd < 0) {
     fprintf(stderr, "Unable to open \"%s\"\n", options.in_path);
-    return 2;
+    return 1;
   }
 
   int filesize = lseek(fd, 0, SEEK_END);
@@ -441,14 +441,14 @@ int main(int argc, char** argv)
   if(strncmp(&header->signature[0], "VTF", 4) != 0
      || header->image_format == IMAGE_FORMAT_NONE) {
     fprintf(stderr, "Input file is invalid\n");
-    return 2;
+    return 1;
   }
 
   if(header->version[0] > 7
      || (header->version[0] == 7 && header->version[1] > 2)) {
     fprintf(stderr, "Unsupported VTF file version: %i.%i\n",
         header->version[0], header->version[1]);
-    return 2;
+    return 1;
   }
 
   if(options.verbose) {
@@ -469,7 +469,7 @@ int main(int argc, char** argv)
   //Validate the chosen frame and calculate the offset
   if(options.frame < 0 || options.frame > header->frames) {
     fprintf(stderr, "Invalid frame number: %i\n", options.frame);
-    return 3;
+    return 1;
   }
 
   //Which frame we want to look at, 1 being the last frame, 2 the previous, etc.
@@ -502,14 +502,14 @@ int main(int argc, char** argv)
       break;
     default:
       fprintf(stderr, "Unsupported format: %s\n", format_to_name(header->image_format));
-      return 4;
+      return 1;
   }
 
   //We should now have valid pixel data, so write a png
   FILE* of = fopen(options.out_path, "wb");
   if(!of) {
     fprintf(stderr, "Could not open \"%s\" for writing\n", options.out_path);
-    return 5;
+    return 1;
   }
 
   png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
