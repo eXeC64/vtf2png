@@ -8,7 +8,7 @@ SOURCES = $(wildcard *.c)
 OBJECTS = $(patsubst %.c,%.o,$(SOURCES))
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(LDFLAGS) $(LDLIBS) -o $@ $<
+	$(CC) $(LDFLAGS) $(LDLIBS) -o $@ $^
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $<
