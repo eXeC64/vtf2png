@@ -185,6 +185,11 @@ void decode_rgba(uint8_t* data, int filesize, int frame_offset, int format, uint
           r = data[pos++];
           a = 255;
           break;
+        default:
+          r = 255;
+          g = 255;
+          b = 255;
+          a = 255;
       }
       rgba_rows[y][4*x+0] = r;
       rgba_rows[y][4*x+1] = g;
