@@ -40,6 +40,9 @@ enum
   IMAGE_FORMAT_UVLX8888
 };
 
+// the header structure wants low_image_format and depth fields to be unaligned
+#pragma pack(1)
+
 typedef struct
 {
   char           signature[4];       // File signature ("VTF\0"). (or as little-endian integer, 0x00465456)
@@ -54,16 +57,29 @@ typedef struct
   float          reflectivity[3];    // reflectivity vector.
   unsigned char  padding1[4];        // reflectivity padding (8 byte packing).
   float          bumpmap_scale;      // Bumpmap scale.
-  unsigned int   image_format;       // High resolution image format.
+  int            image_format;       // High resolution image format.
   unsigned char  mipmap_count;       // Number of mipmaps.
   unsigned int   low_image_format;   // Low resolution image format (always DXT1).
   unsigned char  low_width;          // Low resolution image width.
   unsigned char  low_height;         // Low resolution image height.
   unsigned short depth;              // Depth of the largest mipmap in pixels.
                                      // Must be a power of 2. Can be 0 or 1 for a 2D texture (v7.2 only).
+  // 7.3+
+  unsigned char   padding2[3];       // depth padding (4 byte alignment).
+  unsigned int    numResources;      // Number of resources this vtf has. The max appears to be 32.
+  unsigned char   padding3[8];       // Necessary on certain compilers
 } vtf_header_t;
 
-const char* format_to_name(int format)
+typedef struct
+{
+  unsigned char   tag[3];            // A three-byte "tag" that identifies what this resource is.
+  unsigned char   flags;             // Resource entry flags. The only known flag is 0x2,
+                                     //   which indicates that no data chunk corresponds to this resource.
+  unsigned int    offset;            // The offset of this resource's data in the file.
+                                     //   If type is CRC, the value is embedded into this field.
+} vtf_resurce_entry_t;
+
+static const char* format_to_name(int format)
 {
   switch(format) {
     case IMAGE_FORMAT_RGBA8888:
@@ -124,10 +140,8 @@ const char* format_to_name(int format)
   return "unknown";
 }
 
-void decode_rgba(uint8_t* data, int filesize, int frame_offset, int format, uint8_t** rgba_rows)
+static void decode_rgba(vtf_header_t* header, uint8_t *image_end, int frame_offset, uint8_t** rgba_rows)
 {
-  vtf_header_t* header = (vtf_header_t*) data;
-
   int has_alpha;
   switch(header->image_format) {
     case IMAGE_FORMAT_RGBA8888:
@@ -142,7 +156,8 @@ void decode_rgba(uint8_t* data, int filesize, int frame_offset, int format, uint
   }
 
   int framesize = header->width * header->height * (has_alpha ? 4 : 3);
-  int pos = filesize - (framesize*frame_offset);
+  uint8_t *data = image_end - (framesize*frame_offset);
+  int pos = 0;
 
   uint8_t r,g,b,a;
 
@@ -199,7 +214,7 @@ void decode_rgba(uint8_t* data, int filesize, int frame_offset, int format, uint
   }
 }
 
-void rgb565_to_rgb888(uint16_t in, uint8_t *out)
+static void rgb565_to_rgb888(uint16_t in, uint8_t *out)
 {
   uint8_t r,g,b;
   r = (uint8_t) (in >> 11) & 31;
@@ -214,7 +229,7 @@ void rgb565_to_rgb888(uint16_t in, uint8_t *out)
 }
 
 //Decode the color information and apply it a 4x4 block of rows
-void decode_dxt_colors(int x, int y, uint16_t c0, uint16_t c1, uint32_t ci, uint8_t** rgba_rows)
+static void decode_dxt_colors(int x, int y, uint16_t c0, uint16_t c1, uint32_t ci, uint8_t** rgba_rows)
 {
   uint8_t c888[3], r[4], g[4], b[4];
 
@@ -247,11 +262,11 @@ void decode_dxt_colors(int x, int y, uint16_t c0, uint16_t c1, uint32_t ci, uint
   }
 }
 
-void decode_dxt1(uint8_t* data, int filesize, int frame_offset, uint8_t** rgba_rows)
+static void decode_dxt1(vtf_header_t* header, uint8_t *image_end, int frame_offset, uint8_t** rgba_rows)
 {
-  vtf_header_t* header = (vtf_header_t*) data;
   int framesize = ((header->width+3)/4) * ((header->height+3)/4) * (64/8);
-  int pos = filesize - (framesize*frame_offset);
+  uint8_t *data = image_end - (framesize*frame_offset);
+  int pos = 0;
 
   uint16_t c0, c1; //packed color values
   uint32_t ci; //color indices
@@ -277,11 +292,11 @@ void decode_dxt1(uint8_t* data, int filesize, int frame_offset, uint8_t** rgba_r
   }
 }
 
-void decode_dxt3(uint8_t* data, int filesize, int frame_offset, uint8_t** rgba_rows)
+static void decode_dxt3(vtf_header_t* header, uint8_t *image_end, int frame_offset, uint8_t** rgba_rows)
 {
-  vtf_header_t* header = (vtf_header_t*) data;
   int framesize = ((header->width+3)/4) * ((header->height+3)/4) * (128/8);
-  int pos = filesize - (framesize*frame_offset);
+  uint8_t *data = image_end - (framesize*frame_offset);
+  int pos = 0;
 
   uint16_t c0, c1; //packed color values
   uint32_t ci; //color indices
@@ -317,11 +332,11 @@ void decode_dxt3(uint8_t* data, int filesize, int frame_offset, uint8_t** rgba_r
   }
 }
 
-void decode_dxt5(uint8_t* data, int filesize, int frame_offset, uint8_t** rgba_rows)
+static void decode_dxt5(vtf_header_t* header, uint8_t *image_end, int frame_offset, uint8_t** rgba_rows)
 {
-  vtf_header_t* header = (vtf_header_t*) data;
   int framesize = ((header->width+3)/4) * ((header->height+3)/4) * (128/8);
-  int pos = filesize - (framesize*frame_offset);
+  uint8_t *data = image_end - (framesize*frame_offset);
+  int pos = 0;
 
   uint8_t a[8]; //alpha values
   uint64_t ai; //alpha indices
@@ -377,13 +392,13 @@ struct options {
   int verbose;
 };
 
-int arg_parse_opt(int key, char* arg, struct argp_state *state)
+static int arg_parse_opt(int key, char* arg, struct argp_state *state)
 {
   struct options *options = state->input;
   switch(key) {
     case ARGP_KEY_INIT:
-      options->in_path = "";
-      options->out_path = "";
+      options->in_path = NULL;
+      options->out_path = NULL;
       options->frame = 1;
       options->verbose = 0;
       break;
@@ -423,12 +438,12 @@ int main(int argc, char** argv)
 {
 
   struct argp_option arg_options[] = {
-    { "frame", 'f', "FRAME", 0, "Output a specific frame"},
-    { "verbose", 'v', 0, 0, "Verbose output"},
+    { "frame", 'f', "FRAME", 0, "Output a specific frame", 0},
+    { "verbose", 'v', 0, 0, "Verbose output", 0},
     {0},
   };
 
-  struct argp argp = {arg_options, arg_parse_opt, "INPUT.vtf OUTPUT.png"};
+  struct argp argp = {arg_options, arg_parse_opt, "INPUT.vtf OUTPUT.png", 0, 0, 0, 0};
 
   struct options options;
   argp_parse(&argp, argc, argv, 0, 0, &options);
@@ -449,13 +464,6 @@ int main(int argc, char** argv)
     return 1;
   }
 
-  if(header->version[0] > 7
-     || (header->version[0] == 7 && header->version[1] > 2)) {
-    fprintf(stderr, "Unsupported VTF file version: %i.%i\n",
-        header->version[0], header->version[1]);
-    return 1;
-  }
-
   if(options.verbose) {
     printf("version: %i.%i\n"
         "width: %i\n"
@@ -471,10 +479,60 @@ int main(int argc, char** argv)
         format_to_name(header->image_format));
   }
 
+  if(header->version[0] > 7 || header->version[1] > 5) {
+    fprintf(stderr, "Unsupported VTF file version: %i.%i\n",
+        header->version[0], header->version[1]);
+    return 1;
+  }
+
   //Validate the chosen frame and calculate the offset
   if(options.frame < 0 || options.frame > header->frames) {
     fprintf(stderr, "Invalid frame number: %i\n", options.frame);
     return 1;
+  }
+
+  //Image position depends on VTF version
+  //We need the end of the high resolution image, because mipmaps are stored in order of increasing size
+  int image_end = 0;
+  if(header->version[1] > 2) {
+    enum {
+      FOUND_NOTHING,
+      FOUND_IMAGEDATA,
+      FOUND_END
+    } search_state = FOUND_NOTHING;
+    vtf_resurce_entry_t *resources = (vtf_resurce_entry_t*)(filedata+sizeof(vtf_header_t));
+    for(unsigned i=0; i<header->numResources; i++) {
+        switch(search_state) {
+          case FOUND_NOTHING:
+            if (resources[i].tag[0] == 0x30) {
+              search_state = FOUND_IMAGEDATA;
+            }
+            break;
+          case FOUND_IMAGEDATA:
+            //CRC is embedded in the offset field
+            if (resources[i].tag[0] != 'C') {
+              image_end = resources[i].offset;
+              search_state = FOUND_END;
+            }
+            break;
+          case FOUND_END:
+            break;
+        }
+    }
+    if(search_state == FOUND_NOTHING) {
+      fprintf(stderr, "VTF file doesn't contain High-res image data !?!\n");
+      return 1;
+    } else if(search_state == FOUND_IMAGEDATA) {
+      //High-res image data was the last resource with an offset
+      image_end = filesize;
+    }
+  } else {
+    //Up until v7.2 the end of the image data is at the end of the file
+    image_end = filesize;
+  }
+
+  if(header->frames > 1) {
+    printf("VTF file has %u frames.\n", header->frames);
   }
 
   //Which frame we want to look at, 1 being the last frame, 2 the previous, etc.
@@ -494,16 +552,16 @@ int main(int argc, char** argv)
     case IMAGE_FORMAT_BGRA8888:
     case IMAGE_FORMAT_RGB888:
     case IMAGE_FORMAT_BGR888:
-      decode_rgba(filedata, filesize, frame_offset, header->image_format, rgba_rows);
+      decode_rgba(header, filedata+image_end, frame_offset, rgba_rows);
       break;
     case IMAGE_FORMAT_DXT1:
-      decode_dxt1(filedata, filesize, frame_offset, rgba_rows);
+      decode_dxt1(header, filedata+image_end, frame_offset, rgba_rows);
       break;
     case IMAGE_FORMAT_DXT3:
-      decode_dxt3(filedata, filesize, frame_offset, rgba_rows);
+      decode_dxt3(header, filedata+image_end, frame_offset, rgba_rows);
       break;
     case IMAGE_FORMAT_DXT5:
-      decode_dxt5(filedata, filesize, frame_offset, rgba_rows);
+      decode_dxt5(header, filedata+image_end, frame_offset, rgba_rows);
       break;
     default:
       fprintf(stderr, "Unsupported format: %s\n", format_to_name(header->image_format));
@@ -533,7 +591,7 @@ int main(int argc, char** argv)
   for(int i = 0; i < header->height; ++i)
     free(rgba_rows[i]);
   free(rgba_rows);
-  
+
   munmap(filedata, filesize);
   close(fd);
 
